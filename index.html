@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>공룡 게임</title>
+  <style> 
+    body {
+      margin: 50;
+      padding: 220px;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body> 
+  <canvas id="gameCanvas"></canvas>
+  
+  <script>
+    // 게임 설정
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 800;
+    canvas.height = 220;
+
+    const dinoImage = new Image();
+    const obstacleImage = new Image();
+    const backgroundImage = new Image();
+  
+    const bgm = new Audio('8bit.mp3')
+    bgm.loop =true;
+
+    window.addEventListener('keydown', () => {
+      if(bgm.paused){
+        bgm.play().catch(error => {
+          console.error('Audio playback failed:', error);
+        });
+      }
+    });
+
+    // 공룡 이미지 경로
+    dinoImage.src = '고양이.png'; // 공룡 이미지 파일 경로
+    obstacleImage.src = 's.jpg';
+    backgroundImage.src = 'background.jpg';
+
+    // 공룡 속성
+    const dino = {
+      x: 50,
+      y: canvas.height - 60,
+      width: 20,
+      height: 40,
+      speedY: 0,
+      gravity: 0.75,
+      jumpPower: -12,
+      isJumping: false,
+      canDoubleJump: false,  // 더블 점프 가능 여부
+      isCrouching: false,
+      crouchHeight: 20, // 숙였을 때 높이
+      normalHeight: 40, // 기본 높이
+    };
+
+    // 장애물 속성
+    const obstacles = [];
+    const obstacleWidth = 20;
+    const obstacleSpeed = 3.6;
+
+    // 점수
+    let score = 0;
+
+    // 키 이벤트 상태
+    let isKeyDown = false;
+
+    // 점프 처리
+    function jump() {
+      if (!dino.isJumping) {
+        // 첫 번째 점프
+        dino.speedY = dino.jumpPower;
+        dino.isJumping = true;
+        dino.canDoubleJump = true; // 첫 번째 점프 후 더블 점프 가능
+      } else if (dino.canDoubleJump) {
+        // 두 번째 점프
+        dino.speedY = dino.jumpPower;
+        dino.canDoubleJump = false; // 더블 점프 한 후 더 이상 두 번째 점프 불가
+      }
+    }
+
+    // 숙이기 처리
+    function crouch() {
+      if (!dino.isCrouching) {
+        dino.isCrouching = true;
+        dino.height = dino.crouchHeight;
+        dino.y = canvas.height - dino.height - 10;
+      }
+    }
+
+    // 숙이기 해제 처리
+    function standUp() {
+      if (dino.isCrouching) {
+        dino.isCrouching = false;
+        dino.height = dino.normalHeight;
+        dino.y = canvas.height - dino.height - 10;
+      }
+    }
+
+    // 키 이벤트 처리
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !isKeyDown) {
+        isKeyDown = true;
+        jump();
+      }
+      if (e.code === 'ArrowDown') {
+        crouch();
+      }
+    });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowDown') {
+        standUp();
+      }
+      isKeyDown = false;
+    });
+
+    // 장애물 생성
+    function createObstacle() {
+      const obstacleY = canvas.height - Math.random() * 50 - 30; // 랜덤 높이
+      obstacles.push({
+        x: canvas.width,
+        y: obstacleY,
+        width: obstacleWidth,
+        height: 30 + Math.random() * 50, // 장애물 높이 랜덤화
+      });
+    }
+
+    // 장애물 이동
+    function moveObstacles() {
+      for (let i = 0; i < obstacles.length; i++) {
+        obstacles[i].x -= obstacleSpeed;
+
+        if (obstacles[i].x + obstacles[i].width < 0) {
+          obstacles.splice(i, 1);
+          score++;
+        }
+      }
+    }
+
+    // 공룡 위치 업데이트
+    function updateDino() {
+      dino.y += dino.speedY;
+      
+      // 점프 중에 땅에 닿으면 점프 종료
+      if (dino.y + dino.height > canvas.height - 10) {
+        dino.y = canvas.height - dino.height - 10;
+        dino.speedY = 0;
+        dino.isJumping = false;
+        dino.canDoubleJump = false; // 땅에 닿으면 더블 점프 불가
+      } else {
+        dino.speedY += dino.gravity; // 중력 효과
+      }
+    }
+
+    // 충돌 처리
+    function checkCollision() {
+      for (let i = 0; i < obstacles.length; i++) {
+        if (dino.x + dino.width > obstacles[i].x &&
+            dino.x < obstacles[i].x + obstacles[i].width &&
+            dino.y + dino.height > obstacles[i].y &&
+            dino.y < obstacles[i].y + obstacles[i].height) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // 게임 루프
+    function gameLoop() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+
+      // 공룡 업데이트 및 그리기
+      updateDino();
+      
+      ctx.drawImage(dinoImage,dino.x, dino.y, dino.width, dino.height);
+    
+
+      // 장애물 생성 및 이동
+      moveObstacles();
+      for (let i = 0; i < obstacles.length; i++) {
+        // 장애물을 이미지로 그리기
+        ctx.drawImage(obstacleImage, obstacles[i].x, obstacles[i].y, obstacles[i].width, obstacles[i].height);
+      }
+
+      // 점수 표시
+      ctx.fillStyle = 'black';
+      ctx.font = '20px Arial';
+      ctx.fillText('Score: ' + score, 20, 30);
+
+      // 충돌 체크
+      if (checkCollision()) {
+        alert('Game Over!');
+        resetGame();
+      }
+
+      // 장애물 생성 확률
+      if (Math.random() < 0.015) {
+        createObstacle();
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 게임 초기화
+    function resetGame() {
+      dino.y = canvas.height - 40;
+      dino.speedY = 0;
+      dino.isJumping = false;
+      dino.canDoubleJump = false;
+      dino.isCrouching = false;
+      dino.height = dino.normalHeight;
+      dino.y = canvas.height - dino.height - 10;
+      obstacles.length = 0;
+      score = 0;
+    }
+
+    // 시간당 점수 증가
+    function increaseScorePerHour() {
+      setInterval(() => {
+        score++;  // 시간당 점수 증가
+      }, 1000); // 1초마다 점수 1 증가
+    }
+ 
+    // 게임 시작
+    increaseScorePerHour();  // 게임 시작과 함께 시간당 점수 증가 함수 호출
+    gameLoop();
+  </script>
+</body>
+</html>
